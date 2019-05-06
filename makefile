@@ -1,6 +1,8 @@
 all: evaluation expr miniml_lex miniml_parse miniml
 
 evaluation: evaluation.ml
+	ocamlbuild -just-plugin
+	ocamlbuild -package unix 
 	ocamlbuild -lib unix evaluation.byte
 
 expr: expr.ml
