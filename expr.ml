@@ -118,6 +118,7 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
                      else Fun(var, (subst var_name repl e1))
 
   | Let (var, e1, e2) | Letrec (var, e1, e2) ->
+
       (* Case where let statement overrides the substitution *)
       if var = var_name then Let(var, (subst var_name repl e1), e2)
       (* Case where y is not in FV(P) and x neq y *)
@@ -142,9 +143,9 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
 let rec exp_to_concrete_string (exp : expr) : string =
     let f = exp_to_concrete_string in
     match exp with
-    | Var x -> (x :> string) ^ " "
-    | Num x -> (string_of_int x ^ " ")
-    | Bool x -> (string_of_bool x ^ " ")
+    | Var x -> (x :> string)
+    | Num x -> (string_of_int x)
+    | Bool x -> (string_of_bool x)
     | Unop (_, y) -> " ~ " ^ (f y)
     | Binop (x, y, z) ->
         (match x with (* Let symbol = "operator" in helper left, symbol, helper right.*)
