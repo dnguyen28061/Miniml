@@ -101,7 +101,7 @@ exception Impossible_case
 let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
    if SS.mem var_name (free_vars exp)
    then match exp with
-  | Var _ -> repl
+  | Var _-> repl
   | Num _ | Bool _ -> raise Impossible_case
   | Unop (op, e) -> Unop(op, subst var_name repl e)
   | Binop (op, x, y) -> Binop(op, (subst var_name repl x), (subst var_name repl y))
@@ -116,19 +116,28 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
                       let first_sub = subst var (Var new_var) e1 in
                       Fun(new_var, (subst var_name repl first_sub))
                      else Fun(var, (subst var_name repl e1))
-
-  | Let (var, e1, e2) | Letrec (var, e1, e2) ->
-
+ (* Let  rec is slightly different from let *)
+  | Let (var, e1, e2) ->
       (* Case where let statement overrides the substitution *)
       if var = var_name then Let(var, (subst var_name repl e1), e2)
-      (* Case where y is not in FV(P) and x neq y *)
+      (* Case where y is in FV(P) and x neq y *)
       else if (SS.mem var (free_vars repl))
-        then Let(var, (subst var_name repl e1), (subst var_name repl e2))
-      (* Last case where y is in FV(P) *)
-      else
-        let new_var = new_varname () in
+        then let new_var = new_varname () in
         let first_sub = subst var (Var new_var) e2 in
         Let(new_var, (subst var_name repl e1), (subst  var_name repl first_sub))
+      (* Last case where y is not in FV(P) *)
+      else
+      Let(var, (subst var_name repl e1), (subst var_name repl e2))
+  | Letrec (var, e1, e2) ->
+      if var = var_name then exp
+      else if (SS.mem var (free_vars repl))
+        then let new_var = new_varname () in
+        let sub_def_new_var = subst var (Var new_var) e1 in
+        let sub_body_new_var = subst var (Var new_var) e2 in
+        let sub_def_repl = subst var_name repl sub_def_new_var in
+        let sub_body_repl = subst var_name repl sub_body_new_var in
+        Letrec(new_var, sub_def_repl, sub_body_repl)
+      else Letrec(var, (subst var_name repl e1), (subst var_name repl e2))
   | Raise | Unassigned -> exp
   | App (e1, e2) -> App(subst var_name repl e1, (subst var_name repl e2))
    else exp ;;
@@ -140,50 +149,52 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
 
 (* f : expr -> string
    Returns a concrete syntax string representation of the expr *)
+
+(* Function that wraps a string in parentheses *)
+let paren (wrapped : string) : string =
+  "(" ^ wrapped ^ ")"
 let rec exp_to_concrete_string (exp : expr) : string =
     let f = exp_to_concrete_string in
     match exp with
-    | Var x -> (x :> string)
-    | Num x -> (string_of_int x)
-    | Bool x -> (string_of_bool x)
-    | Unop (_, y) -> " ~ " ^ (f y)
+    | Var x -> paren x
+    | Num x -> paren (string_of_int x)
+    | Bool x -> paren (string_of_bool x)
+    | Unop (_, y) -> paren (" ~ eva" ^ (f y))
     | Binop (x, y, z) ->
         (match x with (* Let symbol = "operator" in helper left, symbol, helper right.*)
-          | Plus -> f y ^ " + " ^ f z
-          | Minus -> f y ^ " - " ^ f z
-          | Times -> f y ^ " * " ^ f z
-          | Equals -> f y ^ " = " ^ f z
-          | LessThan -> f y ^ " < " ^ f z)
+          | Plus -> paren (f y ^ " + " ^ f z)
+          | Minus -> paren (f y ^ " - " ^ f z)
+          | Times -> paren (f y ^ " * " ^ f z)
+          | Equals -> paren (f y ^ " = " ^ f z)
+          | LessThan -> paren(f y ^ " < " ^ f z))
 
-    | Conditional (x, y, z) -> "if " ^ f x ^ " then " ^ f y ^ " else " ^ f z
-    | Fun (x, y) -> "fun " ^ (x :> string) ^ f y
-    | Let (x, y, z) -> "Let " ^ (x :> string) ^ " = " ^ f y ^ " in " ^ f z
-    | Letrec (x, y, z) -> "Let rec " ^ (x :> string) ^ " = " ^ f y ^ " in " ^ f z
+    | Conditional (x, y, z) -> paren("if " ^ f x ^ " then " ^ f y ^ " else " ^ f z)
+    | Fun (x, y) -> paren("fun " ^ (x) ^ " -> " ^ f y)
+    | Let (x, y, z) -> paren("let " ^ (x) ^ " = " ^ f y ^ " in " ^ f z)
+    | Letrec (x, y, z) -> paren("let rec " ^ (x) ^ " = " ^ f y ^ " in " ^ f z)
     | Raise -> "Raise"
     | Unassigned -> "Unassigned"
-    | App (x, y) -> f x ^ f y
+    | App (x, y) -> paren(f x ^ " " ^ f y)
 
 (* exp_to_abstract_string : expr -> string
    Returns a string representation of the abstract syntax of the expr *)
 let rec exp_to_abstract_string (exp : expr) : string =
     let f = exp_to_abstract_string in
-    let paren (wrapped : string) : string =
-      "(" ^ wrapped ^ ")" in
     match exp with
     | Var x -> "Var" ^ paren x
     | Num x ->  "Num" ^ paren(string_of_int x)
     | Bool x -> "Bool" ^ paren(string_of_bool x)
-    | Unop (_, y) -> "Unop" ^ paren("Negate" ^ paren(f y))
+    | Unop (x, y) -> "Unop" ^ paren("Negate" ^ paren(f y))
     | Binop (x, y, z) ->
         (match x with (* Let symbol = "operator" in helper left, symbol, helper right.*)
-          | Plus -> "Binop" ^ paren("Plus" ^ paren (f y ^ ", " ^ (f z)))
-          | Minus -> "Binop" ^ paren("Minus" ^ paren (f y ^ ", " ^ (f z)))
-          | Times -> "Binop" ^  paren("Times" ^ paren (f y ^ ", " ^ (f z)))
-          | Equals -> "Binop" ^ paren("Equals" ^ paren (f y ^ ", " ^ (f z)))
-          | LessThan -> "Binop" ^ paren("LessThan" ^ paren (f y ^ ", " ^ (f z))))
+          | Plus -> "Binop" ^ paren("Plus" ^ ", " ^ f y ^ ", " ^ (f z))
+          | Minus -> "Binop" ^ paren("Minus" ^ ", " ^ f y ^ ", " ^ (f z))
+          | Times -> "Binop" ^  paren("Times" ^ ", " ^ f y ^ ", " ^ (f z))
+          | Equals -> "Binop" ^ paren("Equals" ^ ", " ^ f y ^ ", " ^ (f z))
+          | LessThan -> "Binop" ^ paren("LessThan" ^ ", " ^ f y ^ ", " ^ (f z)))
     | Conditional (x, y, z) -> "Conditional" ^ paren (f x ^ ", " ^ f y ^ ", " ^ f z)
-    | Fun (x, y) -> "Fun" ^ ", " ^ paren (x ^ (f y))
-    | Let (x, y, z) -> "Let" ^ paren (x ^ ", " ^ f y ^ ", " ^ f z)
+    | Fun (x, y) -> "Fun" ^ paren (x ^ ")" ^ ", " ^ f y)
+    | Let (x, y, z) -> "Let" ^ paren (x ^ ")" ^ ", " ^ f y ^ ", " ^ f z)
     | Letrec (x, y, z) -> "Letrec" ^ paren (x ^ ", " ^ f y ^ ", " ^ f z)
     | Raise -> "Raise"
     | Unassigned -> "Unassigned"

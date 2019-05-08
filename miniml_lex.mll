@@ -1,4 +1,4 @@
-(* 
+(*
                          CS 51 Final Project
                       MiniML -- Lexical Analyzer
 
@@ -13,7 +13,7 @@
     List.iter (fun (key, data) -> Hashtbl.add tbl key data) init;
     tbl
 
-  let keyword_table = 
+  let keyword_table =
     create_hashtable 8 [
                        ("if", IF);
                        ("in", IN);
@@ -28,8 +28,8 @@
                        ("fun", FUNCTION);
                        ("function", FUNCTION)
                      ]
-                     
-  let sym_table = 
+
+  let sym_table =
     create_hashtable 8 [
                        ("=", EQUALS);
                        ("<", LESSTHAN);
@@ -57,7 +57,7 @@ rule token = parse
   | id as word
         { try
             let token = Hashtbl.find keyword_table word in
-            token 
+            token
           with Not_found ->
             ID word
         }
