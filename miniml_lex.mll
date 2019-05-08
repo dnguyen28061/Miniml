@@ -41,7 +41,10 @@
                        ("-", MINUS);
                        ("*", TIMES);
                        ("(", OPEN);
-                       (")", CLOSE)
+                       (")", CLOSE);
+                       ("+.", PLUSF);
+                       ("-.", MINUSF);
+                       ("*.", TIMESF)
                      ]
 }
 
@@ -54,6 +57,10 @@ rule token = parse
         { let num = int_of_string inum in
           INT num
         }
+  | digit+ '.' +digit+  as fnum
+        { let num = float_of_string fnum in
+          FLOAT num }
+
   | id as word
         { try
             let token = Hashtbl.find keyword_table word in

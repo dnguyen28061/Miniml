@@ -1,4 +1,4 @@
-(* 
+(*
                          CS 51 Final Project
                         MiniML -- Expressions
 *)
@@ -17,15 +17,19 @@ type binop =
   | Times
   | Equals
   | LessThan
+  | Plusf
+  | Minusf
+  | Timesf
 ;;
 
 (* Variables *)
 type varid = string ;;
-  
+
 (* Expressions *)
 type expr =
   | Var of varid                         (* variables *)
-  | Num of int                           (* integers *)
+  | Num of int
+  | Float of float                       (* integers *)
   | Bool of bool                         (* booleans *)
   | Unop of unop * expr                  (* unary operators *)
   | Binop of binop * expr * expr         (* binary operators *)
@@ -37,7 +41,7 @@ type expr =
   | Unassigned                           (* (temporarily) unassigned *)
   | App of expr * expr                   (* function applications *)
 ;;
-  
+
 type varidset ;;
 
 (* same_vars varids -- Test to see if two sets have the same elements

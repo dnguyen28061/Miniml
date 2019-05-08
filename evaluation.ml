@@ -45,39 +45,42 @@ module Env : Env_type =
     (* Creates a closure from an expression and the environment it's
        defined in *)
     let close (exp : expr) (env : env) : value =
-      Closure(exp,env) ;;
+        Closure(exp,env) ;;
 
     (* Looks up the value of a variable in the environment *)
     let lookup (env : env) (varname : varid) : value =
-      try !(List.assoc varname env)
-      with
-      | Not_found -> raise (EvalError "not found in environment") ;;
+        try !(List.assoc varname env)
+        with
+        | Not_found -> raise (EvalError "not found in environment") ;;
 
     (* Returns a new environment just like env except that it maps the
        variable varid to loc *)
     let extend (env : env) (varname : varid) (loc : value ref) : env =
-      (varname, loc) :: env ;;
+        (varname, loc) :: env ;;
 
     (* Returns a printable string representation of an environment *)
     let rec env_to_string (env : env) : string =
-      let val_to_string (v : value) : string =
-        match v with
-        | Val e -> exp_to_concrete_string e
-        | Closure (expr, env) -> exp_to_concrete_string expr ^ "," ^ env_to_string env in
-      "E{" ^
-      List.fold_left (fun a var -> a ^ fst var ^ " -> " ^ val_to_string !(snd var) ^ ",") "" env
-
-      ^ "}";;
+        let val_to_string (v : value) : string =
+            match v with
+            | Val e -> exp_to_concrete_string e
+            | Closure (expr, env) ->
+                  exp_to_concrete_string expr ^ "," ^ env_to_string env in
+                  "E{" ^ List.fold_left
+                            (fun a var -> a ^ fst var ^ " -> " ^
+                             val_to_string !(snd var) ^ ",")
+                             ""
+                             env
+                                  ^ "}" ;;
 
     (* Returns a printable string representation of a value; the flag
        printenvp determines whether to include the environment in the
        string representation when called on a closure *)
     let value_to_string ?(printenvp : bool = true) (v : value) : string =
-      match v with
-      | Val e -> exp_to_concrete_string e
-      | Closure (e, env) -> if printenvp then env_to_string env
-                            ^ ", " ^ exp_to_concrete_string e
-                            else exp_to_concrete_string e ;;
+        match v with
+        | Val e -> exp_to_concrete_string e
+        | Closure (e, env) -> if printenvp then env_to_string env
+                              ^ ", " ^ exp_to_concrete_string e
+                              else exp_to_concrete_string e ;;
   end
 ;;
 
@@ -111,59 +114,66 @@ let eval_t (exp : expr) (_env : Env.env) : Env.value =
   Env.Val exp ;;
 
 (* The SUBSTITUTION MODEL evaluator -- to be completed *)
-(* Abstracted helper function evaluate the binop in eval_s and func *)
+(* Abstracted helper function evaluate the binop in the evals*)
 let binopeval (op: binop) (e1: expr) (e2: expr) : expr =
     match op, e1, e2 with
-    | Plus, (Num x), (Num y) -> Num (x + y)
+    | Plus, Num x, Num y -> Num (x + y)
     | Minus, Num x, Num y -> Num (x - y)
     | Times, Num x, Num y -> Num (x * y)
     | Equals, Num x, Num y -> Bool (x = y)
     | Equals, Bool x, Bool y -> Bool (x = y)
+    | Equals, Float x, Float y -> Bool (x = y)
     | LessThan, Num x, Num y -> Bool (x < y)
+    | LessThan, Float x, Float y -> Bool (x < y)
+    | Plusf, Float x, Float y -> Float (x +. y)
+    | Minusf, Float x, Float y -> Float (x -. y)
+    | Timesf, Float x, Float y -> Float (x *. y)
     | Plus, _, _ | Minus, _, _ | Times, _, _
-    | Equals, _, _ | LessThan, _, _ ->
-        raise (EvalError "incompatible Binop types") ;;
-
+    | Equals, _, _ | LessThan, _, _ | Plusf, _, _
+    | Minusf, _, _ | Timesf, _, _ ->
+        raise (EvalError "Incompatible types for binary operators") ;;
+(* Abstracted away the unary operators for the evaluation functions *)
 let unopeval (e : expr) : expr =
   match e with
   | Num x -> (Num(- x))
+  | Float x -> (Float(~-. x))
   | Bool x -> (Bool(not x))
   | Unop (_, _) | Binop (_, _, _) | Fun (_, _) | Let (_, _, _)
   | Conditional (_, _, _) | Letrec (_, _, _) | Raise | Unassigned
-  | App (_, _) | Var _ -> raise (EvalError "Unop not a bool/num type") ;;
+  | App (_, _) | Var _ -> raise (EvalError "Unop not a bool/num/float type") ;;
 
 let rec eval_s (_exp : expr) (_env : Env.env) : Env.value =
-  (* Took out the evaluation case for binop for easier readibility *)
   let empty = Env.create ()  in
-  (* Helper that evaluates and then takes the expression *)
+  (* Helper that evaluates and then takes the expression from a value *)
   let deval_s value =
-    match eval_s value empty with
-    | Env.Val(x) -> x
-    | Env.Closure _ -> raise (EvalError "No closures in substitution") in
-   match _exp with
-   | Var _ -> raise (EvalError "Free variables don't evaluate")
-   | Num x -> Env.Val(Num(x))
-   | Bool x -> Env.Val(Bool(x))
-   | Unop (_, e1) -> Env.Val(unopeval (deval_s e1))
-   | Binop (op, e1, e2) -> Env.Val(binopeval op (deval_s e1) (deval_s e2))
-   | Conditional (e1, e2, e3) ->
-        let cond = deval_s e1 in
-        if cond = Bool true then eval_s e2 empty
-        else eval_s e3 empty
-   | Fun (var, e) -> Env.Val(Fun(var,e))
-   | Let (var, def, body) ->
-     let def' = deval_s def in
-     eval_s (subst var def' body) empty
-   | Letrec (var, def, body) ->
-     let  def' = (subst var (Letrec(var, def, Var(var))) def) in
-     eval_s (subst var def' body) empty
-   | App (e1, e2) ->
-        (match deval_s e1 with
-        | Fun (var, e1') -> eval_s (subst var e2 e1') empty
-        | _ -> raise (EvalError "invalid function application"))
-   | Raise -> raise (EvalError "Exception Raised")
-   | Unassigned -> raise (EvalError "Variable Unassigned")
- ;;
+      match eval_s value empty with
+      | Env.Val(x) -> x
+      | Env.Closure _ -> raise (EvalError "No closures in substitution") in
+          match _exp with
+          | Var _ -> raise (EvalError "Free variables don't evaluate")
+          | Num x -> Env.Val(Num(x))
+          | Float x -> Env.Val(Float(x))
+          | Bool x -> Env.Val(Bool(x))
+          | Unop (_, e1) -> Env.Val(unopeval (deval_s e1))
+          | Binop (op, e1, e2) ->
+                Env.Val(binopeval op (deval_s e1) (deval_s e2))
+          | Conditional (e1, e2, e3) ->
+              let cond = deval_s e1 in
+              if cond = Bool true then eval_s e2 empty
+              else eval_s e3 empty
+          | Fun (var, e) -> Env.Val(Fun(var,e))
+          | Let (var, def, body) ->
+           let def' = deval_s def in
+           eval_s (subst var def' body) empty
+          | Letrec (var, def, body) ->
+           let  def' = (subst var (Letrec(var, def, Var(var))) def) in
+           eval_s (subst var def' body) empty
+          | App (e1, e2) ->
+              (match deval_s e1 with
+              | Fun (var, e1') -> eval_s (subst var e2 e1') empty
+              | _ -> raise (EvalError "Invalid function application"))
+          | Raise -> raise (EvalError "Exception Raised")
+          | Unassigned -> raise (EvalError "Variable Unassigned")  ;;
 
 (* The DYNAMICALLY-SCOPED ENVIRONMENT MODEL evaluator -- to be
    completed *)
@@ -171,36 +181,37 @@ let rec eval_s (_exp : expr) (_env : Env.env) : Env.value =
 (* Abstracted away the eval functions for use in eval_d and eval_l *)
 let  eval_outline (_exp : expr) (_env : Env.env) func : Env.value =
   let deval value =
-   match func value _env with
-   | Env.Val x -> x
-   | Closure x -> raise (EvalError "no closures in eval_d") in
-   match _exp with
-   | Var x -> Env.lookup _env x
-   | Num x -> Val(Num(x))
-   | Bool x -> Val(Bool(x))
-   | Fun (var, e) -> Val(Fun(var,e))
-   | Binop (op, e1, e2) -> Env.Val(binopeval op (deval e1) (deval e2))
-   | Unop (_, e1) -> Env.Val (unopeval (deval e1))
-   | Conditional (e1, e2, e3) ->
-      let cond = deval e1 in
-      if cond = Bool true then func e2 _env else func e3 _env
-   | Let (var, def, body) ->
-        let def' = ref (func def _env) in
-        let new_env = Env.extend _env var def' in
-        func (body) new_env
-   | Letrec (var, def, body) ->
-      let temp_unassign = ref (Env.Val(Unassigned)) in
-      let temp_env = Env.extend _env var temp_unassign in
-      temp_unassign := func def temp_env;
-      func body temp_env
-   | App (e1, e2) ->
-      (match deval e1  with
-      | Fun (var, e3) ->
-          let new_env = Env.extend _env var (ref (func e2 _env)) in
-          func e3 new_env
-      | _ -> raise (EvalError "incorrect function application"))
-   | Raise | Unassigned ->
-        raise (EvalError "exception from Raise or Unassigned val")
+     match func value _env with
+     | Env.Val x -> x
+     | Closure _ -> raise (EvalError "No closures in eval_d") in
+         match _exp with
+         | Var x -> Env.lookup _env x
+         | Num x -> Val(Num x)
+         | Float x -> Val(Float x)
+         | Bool x -> Val(Bool(x))
+         | Fun (var, e) -> Val(Fun(var,e))
+         | Binop (op, e1, e2) -> Env.Val(binopeval op (deval e1) (deval e2))
+         | Unop (_, e1) -> Env.Val (unopeval (deval e1))
+         | Conditional (e1, e2, e3) ->
+              let cond = deval e1 in
+              if cond = Bool true then func e2 _env else func e3 _env
+         | Let (var, def, body) ->
+              let def' = ref (func def _env) in
+              let new_env = Env.extend _env var def' in
+              func (body) new_env
+         | Letrec (var, def, body) ->
+            let temp_unassign = ref (Env.Val(Unassigned)) in
+            let temp_env = Env.extend _env var temp_unassign in
+            temp_unassign := func def temp_env;
+            func body temp_env
+         | App (e1, e2) ->
+               (match deval e1  with
+                | Fun (var, e3) ->
+                      let new_env = Env.extend _env var (ref (func e2 _env)) in
+                                    func e3 new_env
+                | _ -> raise (EvalError "Incorrect function application"))
+         | Raise -> raise (EvalError "Exception from Raise")
+         | Unassigned -> raise (EvalError "Exception from Unassigned val")
 
 
 let rec eval_d (_exp : expr) (_env : Env.env) : Env.value =
@@ -209,17 +220,16 @@ let rec eval_d (_exp : expr) (_env : Env.env) : Env.value =
    completed as (part of) your extension *)
 
 let rec eval_l (_exp : expr) (_env : Env.env) : Env.value =
-   match _exp with
-   | Fun (var, e) -> Closure(Fun(var, e), _env)
-   | App (e1, e2) ->
-        (match eval_l e1 _env with
-        | Closure (Fun(var,e3), env) ->
-              let evaluated_e2 = ref (eval_l e2 _env) in
-              let new_env = Env.extend env var evaluated_e2 in
-              eval_l e3 new_env
-        | _ -> raise (EvalError "incorrect function application"))
-   | x -> eval_outline _exp _env eval_l
-;;
+    match _exp with
+    | Fun (var, e) -> Closure(Fun(var, e), _env)
+    | App (e1, e2) ->
+          (match eval_l e1 _env with
+           | Closure (Fun(var,e3), env) ->
+                let evaluated_e2 = ref (eval_l e2 _env) in
+                let new_env = Env.extend env var evaluated_e2 in
+                eval_l e3 new_env
+           | _ -> raise (EvalError "incorrect function application"))
+    | _ -> eval_outline _exp _env eval_l  ;;
 
 (* The EXTENDED evaluator -- if you want, you can provide your
    extension as a separate evaluator, or if it is type- and
@@ -237,4 +247,4 @@ let eval_e _ =
    above, not the evaluate function, so it doesn't matter how it's set
    when you submit your solution.) *)
 
-let evaluate = eval_l ;;
+let evaluate = eval_d ;;

@@ -13,20 +13,24 @@
 %token LET DOT IN REC
 %token NEG
 %token PLUS MINUS
+%token PLUSF MINUSF
 %token TIMES
+%token TIMESF
 %token LESSTHAN EQUALS
 %token IF THEN ELSE
 %token FUNCTION
 %token RAISE
 %token <string> ID
 %token <int> INT
+%token <float> FLOAT
 %token TRUE FALSE
 
 %nonassoc LESSTHAN
 %nonassoc EQUALS
 %left PLUS MINUS
 %left TIMES
-%left NEG
+%left
+
 
 %start input
 %type <Expr.expr> input
@@ -39,6 +43,7 @@ exp:    exp expnoapp            { App($1, $2) }
         | expnoapp              { $1 }
 
 expnoapp: INT                   { Num $1 }
+        | FLOAT                 { Float $1 }
         | TRUE                  { Bool true }
         | FALSE                 { Bool false }
         | ID                    { Var $1 }
@@ -47,6 +52,9 @@ expnoapp: INT                   { Num $1 }
         | exp TIMES exp         { Binop(Times, $1, $3) }
         | exp EQUALS exp        { Binop(Equals, $1, $3) }
         | exp LESSTHAN exp      { Binop(LessThan, $1, $3) }
+        | exp PLUSF exp         { Binop(Plusf, $1, $3)}
+        | exp MINUSF exp        { Binop(Minusf, $1, $3) }
+        | exp TIMESF exp        { Binop(Timesf, $1, $3) }
         | NEG exp               { Unop(Negate, $2) }
         | IF exp THEN exp ELSE exp      { Conditional($2, $4, $6) }
         | LET ID EQUALS exp IN exp      { Let($2, $4, $6) }
