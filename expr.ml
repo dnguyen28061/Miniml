@@ -20,9 +20,11 @@ type binop =
   | Plusf
   | Minusf
   | Timesf
+
 ;;
 
 type varid = string ;;
+
 
 type expr =
   | Var of varid                         (* variables *)
@@ -35,9 +37,11 @@ type expr =
   | Fun of varid * expr                  (* function definitions *)
   | Let of varid * expr * expr           (* local naming *)
   | Letrec of varid * expr * expr        (* recursive local naming *)
-  | Raise                                (* exceptions *)
+  | Raise
+  | RaiseExn of string                            (* exceptions *)
   | Unassigned                           (* (temporarily) unassigned *)
-  | App of expr * expr                   (* function applications *)
+  | App of expr * expr
+  | Trywith of expr * expr               (* function applications *)
 ;;
 
 (*......................................................................
@@ -70,7 +74,7 @@ let vars_of_list : string list -> varidset =
 let rec free_vars (exp : expr) : varidset =
     match exp with
     | Var x -> SS.add x SS.empty
-    | Num _ | Bool _ | Float _ | Raise | Unassigned -> SS.empty
+    | Num _ | Bool _ | Float _ | Raise | Unassigned | RaiseExn _ -> SS.empty
     | Unop (_, y) -> free_vars y
     | Binop (_, x, y) -> SS.union (free_vars x) (free_vars y)
     | Conditional (x, y, z) -> SS.union (free_vars x)
@@ -80,7 +84,8 @@ let rec free_vars (exp : expr) : varidset =
           SS.union (SS.remove var (free_vars e2)) (free_vars e1)
     | Letrec (var, e1, e2) ->
           SS.union (SS.remove var (free_vars e2)) (free_vars e1)
-    | App (e1, e2) -> SS.union (free_vars e1) (free_vars e2)  ;;
+    | App (e1, e2) -> SS.union (free_vars e1) (free_vars e2)
+    | Trywith (e1, e3) -> SS.union (free_vars e1) (free_vars e3)  ;;
 
 (* new_varname : unit -> varid
    Return a fresh variable, constructed with a running counter a la
@@ -111,7 +116,8 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
       then match exp with
       | Var _-> repl
       (* Should be impossible because should be no free_vars in atmoic types *)
-      | Num _ | Float _ | Bool _ -> raise Impossible_case
+      | Num _ | Float _ | Bool _
+      | Raise | Unassigned | RaiseExn _-> raise Impossible_case
       | Unop (op, e) -> Unop(op, sub e)
       | Binop (op, x, y) -> Binop(op, sub x, sub y)
       | Conditional (e1, e2, e3) -> Conditional(sub e1, sub e2, sub e3)
@@ -123,7 +129,6 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
                             let first_sub = subst var (Var new_var) e1 in
                                             Fun(new_var, (sub first_sub))
                          else Fun(var, (sub e1))
-
       | Let (var, e1, e2) ->
          (* Case where let statement overrides the substitution *)
             if var = var_name then Let(var, (sub e1), e2)
@@ -144,8 +149,8 @@ let rec subst (var_name : varid) (repl : expr) (exp : expr) : expr =
                      let sub_body_repl = sub sub_body_new_var in
                      Letrec(new_var, sub_def_repl, sub_body_repl)
             else Letrec(var, (sub e1), (sub e2))
-      | Raise | Unassigned -> exp
       | App (e1, e2) -> App(sub e1, (sub e2))
+      | Trywith (e1, e3) -> Trywith(sub e1, sub e3)
   else exp ;;
 
 (*......................................................................
@@ -184,7 +189,10 @@ let rec exp_to_concrete_string (exp : expr) : string =
     | Let (x, y, z) -> paren("let " ^ (x) ^ " = " ^ f y ^ " in " ^ f z)
     | Letrec (x, y, z) -> paren("let rec " ^ (x) ^ " = " ^ f y ^ " in " ^ f z)
     | Raise -> "Raise"
+    | RaiseExn x -> "exception " ^ x
     | Unassigned -> "Unassigned"
+    | Trywith(x, y) -> "Try" ^ paren (f x) ^ "With exception"
+                        ^ "->" ^ paren (f y)
     | App (x, y) -> paren(f x ^ " " ^ f y)
 
 (* exp_to_abstract_string : expr -> string
@@ -214,5 +222,7 @@ let rec exp_to_abstract_string (exp : expr) : string =
     | Let (x, y, z) -> "Let" ^ paren (x ^ ")" ^ ", " ^ f y ^ ", " ^ f z)
     | Letrec (x, y, z) -> "Letrec" ^ paren (x ^ ", " ^ f y ^ ", " ^ f z)
     | Raise -> "Raise"
+    | RaiseExn x -> "exception" ^ paren x
     | Unassigned -> "Unassigned"
+    | Trywith (x, y) -> "Trywith" ^ paren (f x ^ ", " ^ f y)
     | App (x, y) -> "App" ^ paren (f x ^ ", " ^ f y) ;;

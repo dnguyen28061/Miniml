@@ -20,11 +20,15 @@
 %token IF THEN ELSE
 %token FUNCTION
 %token RAISE
+%token TRY
+%token WITH
+%token <string> EXCN
+%token <string> MATCH_CASE
 %token <string> ID
 %token <int> INT
 %token <float> FLOAT
 %token TRUE FALSE
-
+%token RAISEEXN
 %nonassoc LESSTHAN
 %nonassoc EQUALS
 %left PLUS MINUS
@@ -61,6 +65,8 @@ expnoapp: INT                   { Num $1 }
         | LET REC ID EQUALS exp IN exp  { Letrec($3, $5, $7) }
         | FUNCTION ID DOT exp   { Fun($2, $4) }
         | RAISE                 { Raise }
+        | RAISEEXN EXCN           { RaiseExn $2}
+        | TRY exp WITH exp       { Trywith($2, $4) }
         | OPEN exp CLOSE        { $2 }
 ;
 

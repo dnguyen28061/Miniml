@@ -25,6 +25,7 @@ type binop =
 (* Variables *)
 type varid = string ;;
 
+
 (* Expressions *)
 type expr =
   | Var of varid                         (* variables *)
@@ -37,9 +38,11 @@ type expr =
   | Fun of varid * expr                  (* function definitions *)
   | Let of varid * expr * expr           (* local naming *)
   | Letrec of varid * expr * expr        (* recursive local naming *)
-  | Raise                                (* exceptions *)
+  | Raise
+  | RaiseExn of string                               (* exceptions *)
   | Unassigned                           (* (temporarily) unassigned *)
-  | App of expr * expr                   (* function applications *)
+  | App of expr * expr
+  | Trywith of expr * expr                (* function applications *)
 ;;
 
 type varidset ;;

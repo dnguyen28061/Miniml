@@ -26,7 +26,10 @@
                        ("false", FALSE);
                        ("lambda", FUNCTION);
                        ("fun", FUNCTION);
-                       ("function", FUNCTION)
+                       ("function", FUNCTION);
+                       ("exception", RAISEEXN);
+                       ("try", TRY);
+                       ("with", WITH)
                      ]
 
   let sym_table =
@@ -50,6 +53,7 @@
 
 let digit = ['0'-'9']
 let id = ['a'-'z'] ['a'-'z' '0'-'9']*
+let excn = ['A' - 'Z']*
 let sym = ['(' ')'] | (['+' '-' '*' '.' '=' '~' ';' '<' '>']+)
 
 rule token = parse
@@ -60,6 +64,13 @@ rule token = parse
   | digit+ '.' +digit+  as fnum
         { let num = float_of_string fnum in
           FLOAT num }
+  | excn as word
+        { try
+            let token = Hashtbl.find keyword_table word in
+            token
+          with Not_found ->
+            EXCN word
+        }
 
   | id as word
         { try

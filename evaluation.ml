@@ -70,7 +70,7 @@ module Env : Env_type =
                              val_to_string !(snd var) ^ ",")
                              ""
                              env
-                                  ^ "}" ;;
+                  ^ "}" ;;
 
     (* Returns a printable string representation of a value; the flag
        printenvp determines whether to include the environment in the
@@ -125,6 +125,7 @@ let binopeval (op: binop) (e1: expr) (e2: expr) : expr =
     | Equals, Float x, Float y -> Bool (x = y)
     | LessThan, Num x, Num y -> Bool (x < y)
     | LessThan, Float x, Float y -> Bool (x < y)
+    | LessThan, Bool x, Bool y  -> Bool (x < y)
     | Plusf, Float x, Float y -> Float (x +. y)
     | Minusf, Float x, Float y -> Float (x -. y)
     | Timesf, Float x, Float y -> Float (x *. y)
@@ -139,8 +140,10 @@ let unopeval (e : expr) : expr =
   | Float x -> (Float(~-. x))
   | Bool x -> (Bool(not x))
   | Unop (_, _) | Binop (_, _, _) | Fun (_, _) | Let (_, _, _)
-  | Conditional (_, _, _) | Letrec (_, _, _) | Raise | Unassigned
-  | App (_, _) | Var _ -> raise (EvalError "Unop not a bool/num/float type") ;;
+  | Conditional (_, _, _) | Letrec (_, _, _) | Unassigned | Trywith _
+  | App (_, _) | Var _  -> raise (EvalError "Unop not a bool/num/float type")
+  | RaiseExn x -> raise (EvalError ("exception: " ^ x))
+  | Raise -> raise (EvalError "Raised")  ;;
 
 let rec eval_s (_exp : expr) (_env : Env.env) : Env.value =
   let empty = Env.create ()  in
@@ -173,7 +176,12 @@ let rec eval_s (_exp : expr) (_env : Env.env) : Env.value =
               | Fun (var, e1') -> eval_s (subst var e2 e1') empty
               | _ -> raise (EvalError "Invalid function application"))
           | Raise -> raise (EvalError "Exception Raised")
-          | Unassigned -> raise (EvalError "Variable Unassigned")  ;;
+          | RaiseExn x -> raise(EvalError ("exception: " ^ x))
+          | Unassigned -> raise (EvalError "Variable Unassigned")
+          | Trywith (x, y) ->
+              try eval_s x empty
+              with
+              | EvalError _ -> eval_s y empty ;;
 
 (* The DYNAMICALLY-SCOPED ENVIRONMENT MODEL evaluator -- to be
    completed *)
@@ -211,10 +219,16 @@ let  eval_outline (_exp : expr) (_env : Env.env) func : Env.value =
                                     func e3 new_env
                 | _ -> raise (EvalError "Incorrect function application"))
          | Raise -> raise (EvalError "Exception from Raise")
-         | Unassigned -> raise (EvalError "Exception from Unassigned val")
+         | RaiseExn x -> raise(EvalError ("exception: " ^ x))
+         | Trywith (x, y) ->
+              (try func x _env
+              with
+              | EvalError _ -> func y _env)
+         | Unassigned -> raise (EvalError "Exception from Unassigned val") ;;
 
 
 let rec eval_d (_exp : expr) (_env : Env.env) : Env.value =
+   print_string  (exp_to_abstract_string (_exp) ^ "\n");
   eval_outline _exp _env eval_d ;;
 (* The LEXICALLY-SCOPED ENVIRONMENT MODEL evaluator -- optionally
    completed as (part of) your extension *)
@@ -228,7 +242,7 @@ let rec eval_l (_exp : expr) (_env : Env.env) : Env.value =
                 let evaluated_e2 = ref (eval_l e2 _env) in
                 let new_env = Env.extend env var evaluated_e2 in
                 eval_l e3 new_env
-           | _ -> raise (EvalError "incorrect function application"))
+           | _ -> raise (EvalError "Incorrect function application"))
     | _ -> eval_outline _exp _env eval_l  ;;
 
 (* The EXTENDED evaluator -- if you want, you can provide your
