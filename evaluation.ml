@@ -208,10 +208,10 @@ let  eval_outline (_exp : expr) (_env : Env.env) func : Env.value =
               let new_env = Env.extend _env var def' in
               func (body) new_env
          | Letrec (var, def, body) ->
-            let temp_unassign = ref (Env.Val(Unassigned)) in
-            let temp_env = Env.extend _env var temp_unassign in
-            temp_unassign := func def temp_env;
-            func body temp_env
+              let temp_unassign = ref (Env.Val(Unassigned)) in
+              let temp_env = Env.extend _env var temp_unassign in
+              temp_unassign := func def temp_env;
+              func body temp_env
          | App (e1, e2) ->
                (match deval e1  with
                 | Fun (var, e3) ->
@@ -228,7 +228,6 @@ let  eval_outline (_exp : expr) (_env : Env.env) func : Env.value =
 
 
 let rec eval_d (_exp : expr) (_env : Env.env) : Env.value =
-   print_string  (exp_to_abstract_string (_exp) ^ "\n");
   eval_outline _exp _env eval_d ;;
 (* The LEXICALLY-SCOPED ENVIRONMENT MODEL evaluator -- optionally
    completed as (part of) your extension *)
